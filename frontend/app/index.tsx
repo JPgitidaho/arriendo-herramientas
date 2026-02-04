@@ -1,9 +1,5 @@
-import { View, Text } from "react-native";
+import { Redirect } from "expo-router";
 
-export default function Home() {
-  return (
-    <View style={{ padding: 24 }}>
-      <Text>App arriendo herramientas</Text>
-    </View>
-  );
+export default function Index() {
+  return <Redirect href="/(tabs)" />;
 }
