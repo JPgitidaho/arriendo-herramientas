@@ -13,11 +13,6 @@ export default function QuickAction() {
       await api.outUnit({ identifier: identifier.trim(), user, note });
       Alert.alert("OK", "OUT registrado");
     } catch (e: any) {
-      if (e.status === 409 && e.data?.alternatives?.length) {
-        const alts = e.data.alternatives.map((a: any) => a.identifier).slice(0, 6).join(", ");
-        Alert.alert("No disponible", `Alternativas: ${alts}`);
-        return;
-      }
       Alert.alert("Error", e.message || "Error");
     }
   }
@@ -39,7 +34,7 @@ export default function QuickAction() {
       <TextInput
         value={identifier}
         onChangeText={setIdentifier}
-        placeholder="Identifier (ej: HILTI-001)"
+        placeholder="Identifier (ej: E504-1460462-001)"
         style={{ borderWidth: 1, borderRadius: 10, padding: 10 }}
       />
 

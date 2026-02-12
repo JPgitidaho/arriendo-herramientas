@@ -8,18 +8,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Modelos",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="construct-outline" color={color} size={size} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="construct-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: "Acción",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="swap-horizontal-outline" color={color} size={size} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal-outline" color={color} size={size} />,
         }}
       />
     </Tabs>

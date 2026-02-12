@@ -28,17 +28,19 @@ export default function ModelsScreen() {
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return rows;
-    return rows.filter((r) => r.modelCode.toLowerCase().includes(t));
+    return rows.filter((r) => (r.toolName || "").toLowerCase().includes(t) || r.modelCode.includes(t));
   }, [rows, q]);
 
   async function outSuggested(item: ModelRow) {
     if (!item.suggestedIdentifier) return;
     try {
       await api.outUnit({ identifier: item.suggestedIdentifier, user, note });
+      Alert.alert("OK", "OUT registrado");
       await load();
     } catch (e: any) {
+      const alts = e.data?.alternatives?.map((a: any) => a.identifier).slice(0, 6).join(", ");
       if (e.status === 409) {
-        Alert.alert("No disponible", "Entra al modelo para elegir alternativa.");
+        Alert.alert("No se puede", `${e.message}${alts ? `\nAlternativas: ${alts}` : ""}`);
         return;
       }
       Alert.alert("Error", e.message || "Error");
@@ -52,7 +54,7 @@ export default function ModelsScreen() {
       <TextInput
         value={q}
         onChangeText={setQ}
-        placeholder="Buscar modelCode..."
+        placeholder="Buscar por nombre o modelCode..."
         style={{ borderWidth: 1, borderRadius: 10, padding: 10 }}
       />
 
@@ -78,32 +80,45 @@ export default function ModelsScreen() {
         keyExtractor={(i) => i.modelCode}
         onRefresh={load}
         refreshing={loading}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => router.push(`/model/${item.modelCode}`)}
-            style={{ borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10, gap: 6 }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: "700" }}>{item.modelCode}</Text>
-            <Text>
-              Total: {item.stockTotal} | Disp: {item.disponibles} | Arr: {item.arrendadas}
-            </Text>
-            <Text>Sugerida: {item.suggestedIdentifier || "-"}</Text>
+        ListEmptyComponent={<Text>No hay modelos.</Text>}
+        renderItem={({ item }) => {
+          const title = item.toolName ? `${item.toolName} (${item.modelCode})` : item.modelCode;
+          const suggestedLabel = item.suggestedIdentifier
+            ? `${item.toolName ? `${item.toolName} · ` : ""}${item.suggestedIdentifier}`
+            : "—";
 
-            <Pressable
-              onPress={() => outSuggested(item)}
-              disabled={!item.suggestedIdentifier}
-              style={{
-                padding: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                opacity: item.suggestedIdentifier ? 1 : 0.5,
-                marginTop: 6,
-              }}
-            >
-              <Text>OUT sugerida</Text>
-            </Pressable>
-          </Pressable>
-        )}
+          return (
+            <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10, gap: 6 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700" }}>{title}</Text>
+              {item.brand ? <Text>Marca: {item.brand}</Text> : null}
+              <Text>Total: {item.stockTotal} | Disp: {item.disponibles} | Arr: {item.arrendadas}</Text>
+              <Text>Sugerida: {suggestedLabel}</Text>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                <Pressable
+                  onPress={() => router.push(`/model/${item.modelCode}`)}
+                  style={{ flex: 1, padding: 12, borderRadius: 10, borderWidth: 1 }}
+                >
+                  <Text style={{ textAlign: "center" }}>Ver series</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => outSuggested(item)}
+                  disabled={!item.suggestedIdentifier}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    opacity: item.suggestedIdentifier ? 1 : 0.5,
+                  }}
+                >
+                  <Text style={{ textAlign: "center" }}>OUT sugerida</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        }}
       />
     </View>
   );

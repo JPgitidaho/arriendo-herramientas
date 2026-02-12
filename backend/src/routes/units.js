@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Unit = require("../models/Unit");
 const Movement = require("../models/Movement");
-const { getIsoWeekKey } = require("../utils/weekKey");
+const { getIsoWeekKey, getDayKey } = require("../utils/weekKey");
 
 router.post("/out", async (req, res, next) => {
   try {
@@ -11,6 +11,7 @@ router.post("/out", async (req, res, next) => {
 
     const now = new Date();
     const wk = getIsoWeekKey(now);
+    const dk = getDayKey(now);
 
     const updated = await Unit.findOneAndUpdate(
       { identifier, status: "DISPONIBLE" },
@@ -20,6 +21,10 @@ router.post("/out", async (req, res, next) => {
             weekKey: wk,
             weeklyOutCount: {
               $cond: [{ $ne: ["$weekKey", wk] }, 0, { $ifNull: ["$weeklyOutCount", 0] }]
+            },
+            dayKey: dk,
+            dailyOutCount: {
+              $cond: [{ $ne: ["$dayKey", dk] }, 0, { $ifNull: ["$dailyOutCount", 0] }]
             }
           }
         },
@@ -27,7 +32,8 @@ router.post("/out", async (req, res, next) => {
         {
           $set: {
             outCountTotal: { $add: [{ $ifNull: ["$outCountTotal", 0] }, 1] },
-            weeklyOutCount: { $add: ["$weeklyOutCount", 1] }
+            weeklyOutCount: { $add: ["$weeklyOutCount", 1] },
+            dailyOutCount: { $add: ["$dailyOutCount", 1] }
           }
         }
       ],
@@ -38,10 +44,25 @@ router.post("/out", async (req, res, next) => {
       const unit = await Unit.findOne({ identifier });
       if (!unit) return res.status(404).json({ error: "unit not found" });
 
-      const alternatives = await Unit.find({
-        modelCode: unit.modelCode,
-        status: "DISPONIBLE"
-      }).sort({ weeklyOutCount: 1, outCountTotal: 1, lastOutAt: 1, series: 1 });
+      const base = { modelCode: unit.modelCode, status: "DISPONIBLE" };
+
+      let alternatives = await Unit.find({ ...base, dayKey: { $ne: dk } }).sort({
+        dailyOutCount: 1,
+        weeklyOutCount: 1,
+        outCountTotal: 1,
+        lastOutAt: 1,
+        series: 1
+      });
+
+      if (!alternatives.length) {
+        alternatives = await Unit.find(base).sort({
+          dailyOutCount: 1,
+          weeklyOutCount: 1,
+          outCountTotal: 1,
+          lastOutAt: 1,
+          series: 1
+        });
+      }
 
       return res.status(409).json({
         error: "unit is not available",
@@ -49,9 +70,11 @@ router.post("/out", async (req, res, next) => {
         alternatives: alternatives.map((u) => ({
           identifier: u.identifier,
           series: u.series,
+          dailyOutCount: u.dailyOutCount,
           weeklyOutCount: u.weeklyOutCount,
           outCountTotal: u.outCountTotal,
-          lastOutAt: u.lastOutAt
+          lastOutAt: u.lastOutAt,
+          dayKey: u.dayKey
         }))
       });
     }
@@ -74,9 +97,7 @@ router.post("/in", async (req, res, next) => {
     const unit = await Unit.findOne({ identifier });
     if (!unit) return res.status(404).json({ error: "unit not found" });
 
-    if (unit.status === "DISPONIBLE") {
-      return res.json({ ok: true, unit });
-    }
+    if (unit.status === "DISPONIBLE") return res.json({ ok: true, unit });
 
     unit.status = "DISPONIBLE";
     unit.lastInAt = now;
