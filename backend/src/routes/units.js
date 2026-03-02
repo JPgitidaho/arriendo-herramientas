@@ -13,37 +13,10 @@ router.post("/out", async (req, res, next) => {
     const wk = getIsoWeekKey(now);
     const dk = getDayKey(now);
 
-    const updated = await Unit.findOneAndUpdate(
-      { identifier, status: "DISPONIBLE" },
-      [
-        {
-          $set: {
-            weekKey: wk,
-            weeklyOutCount: {
-              $cond: [{ $ne: ["$weekKey", wk] }, 0, { $ifNull: ["$weeklyOutCount", 0] }]
-            },
-            dayKey: dk,
-            dailyOutCount: {
-              $cond: [{ $ne: ["$dayKey", dk] }, 0, { $ifNull: ["$dailyOutCount", 0] }]
-            }
-          }
-        },
-        { $set: { status: "ARRENDADA", lastOutAt: now } },
-        {
-          $set: {
-            outCountTotal: { $add: [{ $ifNull: ["$outCountTotal", 0] }, 1] },
-            weeklyOutCount: { $add: ["$weeklyOutCount", 1] },
-            dailyOutCount: { $add: ["$dailyOutCount", 1] }
-          }
-        }
-      ],
-      { new: true }
-    );
+    const unit = await Unit.findOne({ identifier });
+    if (!unit) return res.status(404).json({ error: "unit not found" });
 
-    if (!updated) {
-      const unit = await Unit.findOne({ identifier });
-      if (!unit) return res.status(404).json({ error: "unit not found" });
-
+    if (unit.status !== "DISPONIBLE") {
       const base = { modelCode: unit.modelCode, status: "DISPONIBLE" };
 
       let alternatives = await Unit.find({ ...base, dayKey: { $ne: dk } }).sort({
@@ -79,9 +52,31 @@ router.post("/out", async (req, res, next) => {
       });
     }
 
+    if (unit.weekKey !== wk) {
+      unit.weekKey = wk;
+      unit.weeklyOutCount = 0;
+    } else {
+      unit.weeklyOutCount = unit.weeklyOutCount ?? 0;
+    }
+
+    if (unit.dayKey !== dk) {
+      unit.dayKey = dk;
+      unit.dailyOutCount = 0;
+    } else {
+      unit.dailyOutCount = unit.dailyOutCount ?? 0;
+    }
+
+    unit.status = "ARRENDADA";
+    unit.lastOutAt = now;
+
+    unit.outCountTotal = (unit.outCountTotal ?? 0) + 1;
+    unit.weeklyOutCount = (unit.weeklyOutCount ?? 0) + 1;
+    unit.dailyOutCount = (unit.dailyOutCount ?? 0) + 1;
+
+    await unit.save();
     await Movement.create({ identifier, type: "OUT", timestamp: now, user, note });
 
-    res.json({ ok: true, unit: updated });
+    res.json({ ok: true, unit });
   } catch (e) {
     next(e);
   }

@@ -16,8 +16,8 @@ app.use("/models", modelsRoutes);
 app.use("/units", unitsRoutes);
 
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
-  res.status(status).json({ error: err.message || "Server error" });
+  console.log("ERROR:", err);
+  res.status(500).json({ error: err.message });
 });
 
 module.exports = app;
